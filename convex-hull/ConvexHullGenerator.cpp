@@ -18,10 +18,10 @@ ConvexHullGenerator::ConvexHullGenerator()
 
 ConvexHullGenerator::~ConvexHullGenerator()
 {
-    cleanPoints();
+    clean();
 }
 
-void ConvexHullGenerator::cleanPoints()
+void ConvexHullGenerator::clean()
 {
     // clear points
     if (points.size() > 0) {
@@ -48,7 +48,7 @@ bool compare(const Point *p1, const Point* p2)
 const std::vector<Point*> ConvexHullGenerator::generatePoints(const Point& c, const int radius, const int n)
 {
     // clean
-    cleanPoints();
+    clean();
     
     // distribute points randomly
     int min = c.x - radius;

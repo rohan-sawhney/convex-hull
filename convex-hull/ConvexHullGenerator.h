@@ -117,8 +117,8 @@ public:
     const std::vector<Face*> generateConvexHull3d();
     
 private:
-    // clean points
-    void cleanPoints();
+    // clean points and faces
+    void clean();
     
     // member variables
     std::vector<Point*> points;
