@@ -269,5 +269,7 @@ const std::vector<Face*> ConvexHullGenerator::generateConvexHull3d()
         faces = newFaces;
     }
     
+    delete c;
+    
     return faces;
 }
