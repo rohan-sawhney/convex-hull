@@ -9,6 +9,7 @@
 #include "ConvexHullGenerator.h"
 #include "math.h"
 #include <unordered_map>
+#include <list>
 #include <iostream>
 
 ConvexHullGenerator::ConvexHullGenerator()
@@ -18,10 +19,11 @@ ConvexHullGenerator::ConvexHullGenerator()
 
 ConvexHullGenerator::~ConvexHullGenerator()
 {
-    clean();
+    clearPoints();
+    clearFaces();
 }
 
-void ConvexHullGenerator::clean()
+void ConvexHullGenerator::clearPoints()
 {
     // clear points
     if (points.size() > 0) {
@@ -30,7 +32,10 @@ void ConvexHullGenerator::clean()
         }
         points.clear();
     }
-    
+}
+
+void ConvexHullGenerator::clearFaces()
+{
     // clear faces
     if (faces.size() > 0) {
         for (int i = 0; i < faces.size(); i++) {
@@ -40,26 +45,60 @@ void ConvexHullGenerator::clean()
     }
 }
 
-bool compare(const Point *p1, const Point* p2)
+bool triContainsPoint(Point *t1, Point *t2,
+                      Point *t3, Point *p)
+{
+    // compute vectors
+    Eigen::Vector3d v0 = *t2 - *t1;
+    Eigen::Vector3d v1 = *t3 - *t1;
+    Eigen::Vector3d v2 = *p - *t1;
+    
+    // compute dot products
+    double dot00 = v0.x()*v0.x() + v0.y()*v0.y();
+    double dot01 = v0.x()*v1.x() + v0.y()*v1.y();
+    double dot02 = v0.x()*v2.x() + v0.y()*v2.y();
+    double dot11 = v1.x()*v1.x() + v1.y()*v1.y();
+    double dot12 = v1.x()*v2.x() + v1.y()*v2.y();
+    
+    // compute barycentric coordinates
+    double invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+    double u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    double v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+    
+    // check if point is in triangle
+    return (u >= 0) && (v >= 0) && (u + v <= 1);
+}
+
+bool comparePoints(const Point *p1, const Point* p2)
 {
     return p1->x < p2->x || (p1->x == p2->x && p1->y < p2->y);
 }
 
+bool compareFaces(const Face *f1, const Face* f2)
+{
+    double z1 = (f1->p1->z + f1->p2->z + f1->p3->z) / 3;
+    double z2 = (f2->p1->z + f2->p2->z + f2->p3->z) / 3;
+    return z1 > z2;
+}
+
 const std::vector<Point*> ConvexHullGenerator::generatePoints(const Point& c, const int radius, const int n)
 {
-    // clean
-    clean();
+    clearPoints();
     
     // distribute points randomly
-    int min = c.x - radius;
-    int max = c.x + radius;
+    int minX = c.x - radius;
+    int maxX = c.x + radius;
+    int minY = c.y - radius;
+    int maxY = c.y + radius;
+    int minZ = c.z - radius;
+    int maxZ = c.z + radius;
     double r2 = radius * radius;
     for (int i = 0; i < n; i++) {
         double x, y, z, d;
         do {
-            x = min + (rand() % (max - min + 1));
-            y = min + (rand() % (max - min + 1));
-            z = min + (rand() % (max - min + 1));
+            x = minX + (rand() % (maxX - minX + 1));
+            y = minY + (rand() % (maxY - minY + 1));
+            z = minZ + (rand() % (maxZ - minZ + 1));
             
             d = (x - c.x)*(x - c.x) + (y - c.y)*(y - c.y) + (z - c.z)*(z - c.z);
             
@@ -70,7 +109,7 @@ const std::vector<Point*> ConvexHullGenerator::generatePoints(const Point& c, co
     }
     
     // sort points by lowest x (and y in case of tie)
-    std::sort(points.begin(), points.end(), compare);
+    std::sort(points.begin(), points.end(), comparePoints);
     
     return points;
 }
@@ -112,6 +151,11 @@ const std::vector<Point*> generateConvexHull2d(std::vector<Point*> points)
     }
     
     hullPoints.resize(k);
+    
+    for (int i = 0; i < (int)hullPoints.size(); i++) {
+        hullPoints[i]->onHull = true;
+    }
+    
     return hullPoints;
 }
 
@@ -152,6 +196,45 @@ const std::vector<std::vector<Point*>> ConvexHullGenerator::generateOnionPeeling
     }
     
     return convexHulls;
+}
+
+const std::vector<Face*> ConvexHullGenerator::generatetriangulatedHull2d()
+{
+    clearFaces();
+    
+    std::vector<Point*> hullPoints = ::generateConvexHull2d(points);
+    
+    std::list<Face*> faceList;
+    for (int i = 1; i < hullPoints.size()-1; i++) {
+        faceList.push_back(new Face(hullPoints[0], hullPoints[i], hullPoints[i+1]));
+    }
+   
+    for (int i = 0; i < (int)points.size(); i++) {
+        if (!points[i]->onHull) {
+            Face *f = NULL;
+            for (std::list<Face*>::iterator it = faceList.begin(); it != faceList.end(); it++) {
+                if (triContainsPoint((*it)->p1, (*it)->p2, (*it)->p3, points[i])) {
+                    f = *it;
+                    faceList.erase(it);
+                    break;
+                }
+            }
+            
+            if (f) {
+                faceList.push_back(new Face(f->p1, f->p2, points[i]));
+                faceList.push_back(new Face(f->p2, f->p3, points[i]));
+                faceList.push_back(new Face(f->p3, f->p1, points[i]));
+                
+                delete f;
+            }
+        }
+    }
+   
+    for (std::list<Face*>::iterator it = faceList.begin(); it != faceList.end(); it++) {
+        faces.push_back(*it);
+    }
+    
+    return faces;
 }
 
 Point *centroid(Point *p1, Point *p2, Point *p3, Point *p4)
@@ -203,7 +286,9 @@ void incrementEdgeRef(std::unordered_map<std::string, Edge*>& edgeMap, Point *p1
 }
 
 const std::vector<Face*> ConvexHullGenerator::generateConvexHull3d()
-{    
+{
+    clearFaces();
+    
     // create tetrahedron
     Point *c = centroid(points[0], points[1], points[2], points[3]);
     
@@ -250,14 +335,13 @@ const std::vector<Face*> ConvexHullGenerator::generateConvexHull3d()
         if (visibleFaces.size() == 0) continue;
         
         // determine horizon edges (these edges have refCount 1 in edgeMap)
-        for(auto kv : edgeMap) {
+        for (auto kv : edgeMap) {
             if (kv.second->refCount == 1) {
                 // create a face and add it to newFaces
                 Face *face = new Face(kv.second->p1, kv.second->p2, p);
                 if (face->isVisible(c)) face->flip();
                 newFaces.push_back(face);
             }
-            
             // delete edge
             delete kv.second;
         }
@@ -266,10 +350,16 @@ const std::vector<Face*> ConvexHullGenerator::generateConvexHull3d()
         for (size_t j = 0; j < visibleFaces.size(); j++) {
             delete visibleFaces[j];
         }
-        faces = newFaces;
+        faces.clear();
+        for (int i = 0; i < (int)newFaces.size(); i++) {
+            faces.push_back(newFaces[i]);
+        }
     }
     
     delete c;
+    
+    // sort faces by z value
+    std::sort(faces.begin(), faces.end(), compareFaces);
     
     return faces;
 }

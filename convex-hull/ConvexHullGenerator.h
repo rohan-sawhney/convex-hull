@@ -46,17 +46,9 @@ struct Face
 {
     Face() {}
     Face(Point *p10, Point *p20, Point *p30): p1(p10), p2(p20), p3(p30) {
-        p1->onHull = true;
-        p2->onHull = true;
-        p3->onHull = true;
         compute();
     }
     Face(const Face& f): p1(f.p1), p2(f.p2), p3(f.p3), n(f.n), d(f.d) {}
-    ~Face() {
-        p1->onHull = false;
-        p2->onHull = false;
-        p3->onHull = false;
-    }
     
     Face& operator=(const Face& f) {
         p1 = f.p1;
@@ -70,7 +62,7 @@ struct Face
     
     bool isVisible(Point *p) {
         
-        return n.x()*p->x + n.y()*p->y + n.z()*p->z + d > 0;
+        return (n.x()*p->x + n.y()*p->y + n.z()*p->z + d > 0);
     }
     
     void flip() {
@@ -85,11 +77,13 @@ struct Face
     
 private:
     void compute() {
-        Eigen::Vector3d u = *p2 - *p1;
+        Eigen::Vector3d u = *p1 - *p2;
         Eigen::Vector3d v = *p3 - *p2;
         
         n = u.cross(v);
-        d = -(n.x()*p1->x + n.y()*p1->y + n.z()*p1->z);
+        n.normalize();
+        
+        d = -(n.x()*p2->x + n.y()*p2->y + n.z()*p2->z);
     }
     
     Eigen::Vector3d n;
@@ -113,12 +107,18 @@ public:
     // generates onion peels by making use of the convex hull algorithm
     const std::vector<std::vector<Point*>> generateOnionPeeling2d();
     
+    // triangulates 2d hull - Be warned, resutls in atrocious triangulation
+    const std::vector<Face*> generatetriangulatedHull2d();
+    
     // generates 3d convex hull using incremental 3d convex hull algorithm
     const std::vector<Face*> generateConvexHull3d();
     
 private:
-    // clean points and faces
-    void clean();
+    // clean points
+    void clearPoints();
+    
+    // clear Faces
+    void clearFaces();
     
     // member variables
     std::vector<Point*> points;

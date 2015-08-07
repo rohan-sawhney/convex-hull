@@ -11,12 +11,14 @@ int gridX = 600;
 int gridY = 600;
 int gridZ = 600;
 
+bool drawOnionPeels = false;
 bool draw3dHull = false;
+bool draw2dHullTriangulation = false;
 
 ConvexHullGenerator chg;
 std::vector<Point*> points;
-std::vector<std::vector<Point*>> convexHulls2d;
-std::vector<Face*> convexHull3d;
+std::vector<std::vector<Point*>> hullPoints;
+std::vector<Face*> faces;
 
 void printInstructions()
 {
@@ -37,6 +39,35 @@ void init()
     glOrtho(0, gridX, 0, gridY, -gridZ, gridZ);
 }
 
+void drawFace(Face *f, const double z1, const double z2, const double z3)
+{
+    glColor4f(0.0f, 0.0f, 1.0f, 0.6f);
+    glBegin(GL_TRIANGLES);
+    glVertex3f(f->p1->x, f->p1->y, z1);
+    glVertex3f(f->p2->x, f->p2->y, z2);
+    glVertex3f(f->p3->x, f->p3->y, z3);
+    glEnd();
+    
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glBegin(GL_LINES);
+    glVertex3f(f->p1->x, f->p1->y, z1);
+    glVertex3f(f->p2->x, f->p2->y, z2);
+    
+    glVertex3f(f->p2->x, f->p2->y, z2);
+    glVertex3f(f->p3->x, f->p3->y, z3);
+    
+    glVertex3f(f->p3->x, f->p3->y, z3);
+    glVertex3f(f->p1->x, f->p1->y, z1);
+    glEnd();
+    
+    glColor3f(1.0f, 1.0f, 0.0f);
+    glBegin(GL_POINTS);
+    glVertex3f(f->p1->x, f->p1->y, z1);
+    glVertex3f(f->p2->x, f->p2->y, z2);
+    glVertex3f(f->p3->x, f->p3->y, z3);
+    glEnd();
+}
+
 void display()
 {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -45,57 +76,37 @@ void display()
     glColor3f(1.0f, 1.0f, 0.0f);
     glBegin(GL_POINTS);
     for (size_t i = 1; i < points.size(); i++) {
-        if (!points[i]->onHull) {
-            if (draw3dHull) {
-                glVertex3f(points[i]->x, points[i]->y, points[i]->z);
+        if (draw3dHull) {
+            glVertex3f(points[i]->x, points[i]->y, points[i]->z);
                 
-            } else {
-                glVertex3f(points[i]->x, points[i]->y, 0);
-            }
+        } else {
+            glVertex3f(points[i]->x, points[i]->y, 0);
         }
     }
     glEnd();
     
     if (draw3dHull) {
-        for (size_t i = 0; i < convexHull3d.size(); i++) {
-            Face *f = convexHull3d[i];
-            glColor4f(0.0f, 0.0f, 1.0f, 0.6f);
-            glBegin(GL_TRIANGLES);
-            glVertex3f(f->p1->x, f->p1->y, f->p1->z);
-            glVertex3f(f->p2->x, f->p2->y, f->p2->z);
-            glVertex3f(f->p3->x, f->p3->y, f->p3->z);
-            glEnd();
-            
-            glColor3f(1.0f, 1.0f, 1.0f);
-            glBegin(GL_LINES);
-            glVertex3f(f->p1->x, f->p1->y, f->p1->z);
-            glVertex3f(f->p2->x, f->p2->y, f->p2->z);
-            
-            glVertex3f(f->p2->x, f->p2->y, f->p2->z);
-            glVertex3f(f->p3->x, f->p3->y, f->p3->z);
-            
-            glVertex3f(f->p3->x, f->p3->y, f->p3->z);
-            glVertex3f(f->p1->x, f->p1->y, f->p1->z);
-            glEnd();
-            
-            glColor3f(1.0f, 1.0f, 0.0f);
-            glBegin(GL_POINTS);
-            glVertex3f(f->p1->x, f->p1->y, f->p1->z);
-            glVertex3f(f->p2->x, f->p2->y, f->p2->z);
-            glVertex3f(f->p3->x, f->p3->y, f->p3->z);
-            glEnd();
+        for (size_t i = 0; i < faces.size(); i++) {
+            Face *f = faces[i];
+            drawFace(f, f->p1->z, f->p2->z, f->p3->z);
         }
-
+    
+    } else if (draw2dHullTriangulation) {
+        for (size_t i = 0; i < faces.size(); i++) {
+            Face *f = faces[i];
+            drawFace(f, 0, 0, 0);
+        }
+        
     } else {
         glColor4f(0.0f, 0.0f, 1.0f, 0.6f);
-        for (int i = 0; i < (int)convexHulls2d.size(); i++) {
+        for (int i = 0; i < (int)hullPoints.size(); i++) {
             glBegin(GL_LINES);
-            int size = (int)convexHulls2d[i].size();
+            int size = (int)hullPoints[i].size();
             for (int j = 0; j < size; j++) {
                 int next = (j+1) % size;
                 
-                glVertex3f(convexHulls2d[i][j]->x, convexHulls2d[i][j]->y, 0);
-                glVertex3f(convexHulls2d[i][next]->x, convexHulls2d[i][next]->y, 0);
+                glVertex3f(hullPoints[i][j]->x, hullPoints[i][j]->y, 0);
+                glVertex3f(hullPoints[i][next]->x, hullPoints[i][next]->y, 0);
             }
             glEnd();
         }
@@ -110,18 +121,31 @@ void keyboard(unsigned char key, int x, int y)
         case 27 :
             exit(0);
         case ' ':
-            points = chg.generatePoints(Point(300,300,300), 200, 200);
-            if (draw3dHull) convexHull3d = chg.generateConvexHull3d();
-            else convexHulls2d = chg.generateConvexHull2d();
+            points = chg.generatePoints(Point(300,300,0), 200, 200);
+            if (draw3dHull) faces = chg.generateConvexHull3d();
+            else if (draw2dHullTriangulation) faces = chg.generatetriangulatedHull2d();
+            else if (drawOnionPeels) hullPoints = chg.generateOnionPeeling2d();
+            else hullPoints = chg.generateConvexHull2d();
             break;
+            
+        case 'i':
+            drawOnionPeels = !drawOnionPeels;
+            if (!draw3dHull && drawOnionPeels) hullPoints = chg.generateOnionPeeling2d();
+            else hullPoints = chg.generateConvexHull2d();
+            break;
+            
         case 'o':
-            if (!draw3dHull) convexHulls2d = chg.generateOnionPeeling2d();
+            draw2dHullTriangulation = !draw2dHullTriangulation;
+            if (!draw3dHull && draw2dHullTriangulation) faces = chg.generatetriangulatedHull2d();
+            else hullPoints = chg.generateConvexHull2d();
             break;
+            
         case 'p':
             draw3dHull = !draw3dHull;
-            if (draw3dHull) convexHull3d = chg.generateConvexHull3d();
-            else convexHulls2d = chg.generateConvexHull2d();
-            
+            if (draw3dHull) {
+                faces = chg.generateConvexHull3d();
+            }
+            else hullPoints = chg.generateConvexHull2d();
             break;
     }
     
@@ -131,8 +155,8 @@ void keyboard(unsigned char key, int x, int y)
 int main(int argc, char** argv)
 {
     printInstructions();
-    points = chg.generatePoints(Point(300,300,300), 200, 200);
-    convexHulls2d = chg.generateConvexHull2d();
+    points = chg.generatePoints(Point(300,300,0), 200, 200);
+    hullPoints = chg.generateConvexHull2d();
     
     glutInit(&argc,argv);
     glutInitDisplayMode (GLUT_SINGLE | GLUT_RGB);
