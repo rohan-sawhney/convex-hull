@@ -10,7 +10,6 @@
 #include "math.h"
 #include <unordered_map>
 #include <list>
-#include <iostream>
 
 ConvexHullGenerator::ConvexHullGenerator()
 {
