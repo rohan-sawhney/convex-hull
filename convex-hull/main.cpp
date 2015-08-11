@@ -23,7 +23,9 @@ std::vector<Face*> faces;
 void printInstructions()
 {
     std::cout << "spacebar: generates new points and their convex hull\n"
-              << "o: draws onion peels\n"
+              << "i: draws onion peels\n"
+              << "o: draws triangulation of 2d hull\n"
+              << "p: draws 3d hull\n"
               << "escape: exit"
               << std::endl;
 }
