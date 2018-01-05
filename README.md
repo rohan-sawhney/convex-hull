@@ -1,5 +1,5 @@
 # convex-hull
-Implements the 2d convex hull using the monotone chain algorithm. Also generates onion peeling in 2d using the same. Uses the incremental algorithm to build a 3d convex hull.
+Constructs a 2d convex hull with the [monotone chain](https://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain) algorithm and a 3d convex hull with the [incremental algorithm](https://en.wikipedia.org/wiki/Convex_hull_algorithms#Algorithms).
 
 ![](hull.png)
 
